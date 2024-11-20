@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import pymssql
+from sqlalchemy import create_engine
 
 # Estilos personalizados
 st.markdown(
@@ -93,31 +93,15 @@ if not st.session_state["authenticated"]:
     login()
 else:
     # Configurar la conexión a SQL Server
-    server = '52.167.231.145'
-    port = 51433
-    database = 'CreditoYCobranza'
-    username = 'credito'
-    password = 'Cr3d$.23xme'
-
-    # Crear la conexión con manejo de errores
-    try:
-        conn = pymssql.connect(
-            server=server,
-            port=port,
-            user=username,
-            password=password,
-            database=database
-        )
-    except Exception as e:
-        st.error(f"Error al conectar con la base de datos: {e}")
-        st.stop()
+    database_url = "mssql+pymssql://credito:Cr3d$.23xme@52.167.231.145:51433/CreditoYCobranza"
+    engine = create_engine(database_url)
 
     # Cargar datos desde SQL Server
     gestor_autenticado = st.session_state["gestor"].strip()
-    query = "SELECT * FROM Base_Nueva_CRM WHERE GESTOR = %s"  # Cambio a %s para parametrizar
+    query = f"SELECT * FROM Base_Nueva_CRM WHERE GESTOR = '{gestor_autenticado}'"
 
     try:
-        data = pd.read_sql(query, conn, params=[gestor_autenticado])
+        data = pd.read_sql(query, engine)
     except Exception as e:
         st.error(f"Error al ejecutar la consulta: {e}")
         st.stop()
@@ -130,4 +114,98 @@ else:
     if st.sidebar.button("Cerrar Sesión"):
         cerrar_sesion()
 
-    # Resto del código para las páginas (sin cambios)
+    # Configurar páginas
+    if page == "Información de Cliente":
+        cortes = data["CORTE"].unique()
+        selected_corte = st.selectbox("Seleccione un Corte", cortes)
+        filtered_data = data[data['CORTE'] == selected_corte]
+
+        # Buscador por ID_CLIENTE
+        search_id = st.text_input("Buscar ID_CLIENTE", "")
+        if search_id:
+            filtered_data = filtered_data[filtered_data['ID_CLIENTE'].astype(str).str.contains(search_id)]
+
+        # Navegación entre clientes
+        index = st.session_state.get('index', 0)
+
+        if len(filtered_data) > 0:
+            cliente_placeholder = st.empty()
+            with cliente_placeholder.container():
+                cliente = filtered_data.iloc[index]
+                st.write(f"<p class='small-text'>Cliente {index + 1} de {len(filtered_data)} en el Corte {selected_corte}</p>", unsafe_allow_html=True)
+                st.subheader("Información del Cliente")
+                cols = st.columns(2)
+                with cols[0]:
+                    st.write(f"*Nombre:* {cliente['CLIENTE']}")
+                    st.write(f"*ID cliente:* {cliente['ID_CLIENTE']}")
+                    st.write(f"*Clasificación:* {cliente['VALOR_CLIENTE']}")
+                    st.write(f"*Descuento disponible:* {cliente['BOLSA_DESCUENTO']}")
+                    st.write(f"*Facturas históricas:* {cliente['FACTURAS_HISTORICAS']}")
+
+                with cols[1]:
+                    st.write(f"*Teléfono 1:* {cliente['TELEFONO_1']}")
+                    st.write(f"*Teléfono 2:* {cliente['TELEFONO_2']}")
+                    st.write(f"*Teléfono 3:* {cliente['TELEFONO_3']}")
+                    st.write(f"*Comentarios:* {cliente['COMENTARIO']}")
+
+                st.divider()
+
+                # Mostrar saldos generales
+                st.subheader("Saldos Generales del Cliente")
+                st.write(f"*Moratorios:* {cliente['TOTAL_MORATORIOS']}")
+                st.write(f"*Saldo Atrasado Mora:* {cliente['TOTAL_SALDO_ATRASADO_MORA']}")
+                st.write(f"*Saldo Actual Mora:* {cliente['TOTAL_SALDO_ACTUAL']}")
+                st.write(f"*Liquide con:* {cliente['TOTAL_LIQUIDE_CON']}")
+
+                st.divider()
+
+                # Mostrar facturas del cliente
+                st.subheader("Facturas del Cliente")
+                cliente_facturas = data[data['ID_CLIENTE'] == cliente['ID_CLIENTE']]
+                for i, factura in cliente_facturas.iterrows():
+                    st.write(f"*Folio:* {factura['FOLIO']}")
+                    st.write(f"*Artículo:* {factura['ARTICULO']}")
+                    st.write(f"*Saldo Atrasado:* {factura['CF_FOLIO_SALDO_ATRASADO_MORA']}")
+                    st.write(f"*Saldo Actual:* {factura['CF_FOLIO_SALDO_ACTUAL']}")
+                    st.divider()
+
+                # Gestión modificada
+                st.subheader("Gestiones del Cliente")
+                gestion = st.selectbox("Gestión", options=["DP", "NDP", "PP", "SP"], index=0)
+                comentario = st.text_area("Comentarios", value=cliente.get('COMENTARIO', ''))
+
+                if st.button("Guardar Cambios"):
+                    try:
+                        with engine.connect() as conn:
+                            query_update = """
+                                UPDATE Base_Nueva_CRM
+                                SET GESTION = :gestion, COMENTARIO = :comentario
+                                WHERE ID_CLIENTE = :id_cliente
+                            """
+                            conn.execute(query_update, {"gestion": gestion, "comentario": comentario, "id_cliente": cliente["ID_CLIENTE"]})
+                            st.success("Gestión y comentario guardados exitosamente.")
+                    except Exception as e:
+                        st.error(f"Error al guardar los cambios: {e}")
+
+            # Botones para navegar entre clientes
+            col1, col2, col3 = st.columns([1, 1, 1])
+            with col1:
+                if st.button("Anterior") and index > 0:
+                    st.session_state["index"] = index - 1
+            with col3:
+                if st.button("Siguiente") and index < len(filtered_data) - 1:
+                    st.session_state["index"] = index + 1
+
+        else:
+            st.warning("No se encontraron clientes.")
+
+    elif page == "Estadísticas":
+        st.subheader("Estadísticas de Gestión")
+        gestionadas = data[data["GESTION"].notna()]
+        no_gestionadas = data[data["GESTION"].isna()]
+        desglose = gestionadas["GESTION"].value_counts()
+
+        st.metric("Cuentas Gestionadas", len(gestionadas))
+        st.metric("Cuentas No Gestionadas", len(no_gestionadas))
+
+        st.bar_chart(desglose)
