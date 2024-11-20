@@ -1,4 +1,4 @@
-import streamlit as st 
+import streamlit as st
 import pandas as pd
 import pyodbc
 
@@ -80,9 +80,9 @@ def login():
 
 # Botón para cerrar sesión
 def cerrar_sesion():
-    st.session_state["authenticated"] = False
-    st.session_state["gestor"] = None
-    st.session_state.clear()
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.experimental_rerun()
 
 # Verificar si el usuario está autenticado
 if "authenticated" not in st.session_state:
@@ -93,19 +93,31 @@ if not st.session_state["authenticated"]:
 else:
     # Configurar la conexión a SQL Server
     server = '52.167.231.145,51433'
-    database = 'CreditoYCobranza'  
-    username = 'credito'  
-    password = 'Cr3d$.23xme'  
+    database = 'CreditoYCobranza'
+    username = 'credito'
+    password = 'Cr3d$.23xme'
 
-    # Crear la conexión
-    conn = pyodbc.connect(
-        f'DRIVER={{SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}'
-    )
+    # Crear la conexión con manejo de errores
+    try:
+        conn = pyodbc.connect(
+            'DRIVER={ODBC Driver 17 for SQL Server};'
+            f'SERVER={server};'
+            f'DATABASE={database};'
+            f'UID={username};'
+            f'PWD={password};'
+        )
+    except pyodbc.Error as e:
+        st.error(f"Error al conectar con la base de datos: {e}")
+        st.stop()
 
     # Cargar datos desde SQL Server
     gestor_autenticado = st.session_state["gestor"].strip()
-    query = f"SELECT * FROM Base_Nueva_CRM WHERE GESTOR = '{gestor_autenticado}'"
-    data = pd.read_sql(query, conn)
+    query = "SELECT * FROM Base_Nueva_CRM WHERE GESTOR = ?"
+    try:
+        data = pd.read_sql(query, conn, params=[gestor_autenticado])
+    except Exception as e:
+        st.error(f"Error al ejecutar la consulta: {e}")
+        st.stop()
 
     # Sidebar para navegación y botón de cerrar sesión
     st.sidebar.title(f"Gestor: {gestor_autenticado}")
@@ -114,7 +126,6 @@ else:
     st.sidebar.markdown("---")
     if st.sidebar.button("Cerrar Sesión"):
         cerrar_sesion()
-        st.experimental_rerun()
 
     # Configurar páginas
     if page == "Información de Cliente":
@@ -131,7 +142,7 @@ else:
         index = st.session_state.get('index', 0)
 
         if len(filtered_data) > 0:
-            cliente_placeholder = st.empty()  # Marcador para el contenido del cliente
+            cliente_placeholder = st.empty()
             with cliente_placeholder.container():
                 cliente = filtered_data.iloc[index]
                 st.write(f"<p class='small-text'>Cliente {index + 1} de {len(filtered_data)} en el Corte {selected_corte}</p>", unsafe_allow_html=True)
@@ -171,7 +182,7 @@ else:
                     st.write(f"*Saldo Actual:* {factura['CF_FOLIO_SALDO_ACTUAL']}")
                     st.divider()
 
-                # Gestion modificada
+                # Gestión modificada
                 st.subheader("Gestiones del Cliente")
                 gestion = st.selectbox("Gestión", options=["DP", "NDP", "PP", "SP"], index=0)
                 comentario = st.text_area("Comentarios", value=cliente.get('COMENTARIO', ''))

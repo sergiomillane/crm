@@ -4,8 +4,7 @@ services:
     env: python
     buildCommand: |
       apt-get update
-      apt-get install -y unixodbc-dev
-      apt-get install -y curl gnupg
+      apt-get install -y unixodbc-dev curl gnupg
       curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
       curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list
       apt-get update
