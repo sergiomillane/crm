@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import pyodbc
 import pymssql
 
 # Estilos personalizados
@@ -93,7 +92,8 @@ if not st.session_state["authenticated"]:
     login()
 else:
     # Configurar la conexión a SQL Server
-    server = '52.167.231.145,51433'
+    server = '52.167.231.145'
+    port = 51433
     database = 'CreditoYCobranza'
     username = 'credito'
     password = 'Cr3d$.23xme'
@@ -101,19 +101,20 @@ else:
     # Crear la conexión con manejo de errores
     try:
         conn = pymssql.connect(
-            'DRIVER={ODBC Driver 17 for SQL Server};'
-            'SERVER=52.167.231.145,51433;'
-            'DATABASE=CreditoYCobranza;'
-            'UID=credito;'
-            'PWD=Cr3d$.23xme;'
-)
-    except pymssql.Error as e:
+            server=server,
+            port=port,
+            user=username,
+            password=password,
+            database=database
+        )
+    except Exception as e:
         st.error(f"Error al conectar con la base de datos: {e}")
         st.stop()
 
     # Cargar datos desde SQL Server
     gestor_autenticado = st.session_state["gestor"].strip()
-    query = "SELECT * FROM Base_Nueva_CRM WHERE GESTOR = ?"
+    query = "SELECT * FROM Base_Nueva_CRM WHERE GESTOR = %s"  # Cambio a %s para parametrizar
+
     try:
         data = pd.read_sql(query, conn, params=[gestor_autenticado])
     except Exception as e:
@@ -193,8 +194,8 @@ else:
                         cursor = conn.cursor()
                         query_update = """
                             UPDATE Base_Nueva_CRM
-                            SET GESTION = ?, COMENTARIO = ?
-                            WHERE ID_CLIENTE = ?
+                            SET GESTION = %s, COMENTARIO = %s
+                            WHERE ID_CLIENTE = %s
                         """
                         cursor.execute(query_update, (gestion, comentario, cliente['ID_CLIENTE']))
                         conn.commit()
