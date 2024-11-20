@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import pyodbc
+import pymssql
 
 # Estilos personalizados
 st.markdown(
@@ -99,14 +100,14 @@ else:
 
     # Crear la conexión con manejo de errores
     try:
-        conn = pyodbc.connect(
+        conn = pymssql.connect(
             'DRIVER={ODBC Driver 17 for SQL Server};'
-            f'SERVER={server};'
-            f'DATABASE={database};'
-            f'UID={username};'
-            f'PWD={password};'
-        )
-    except pyodbc.Error as e:
+            'SERVER=52.167.231.145,51433;'
+            'DATABASE=CreditoYCobranza;'
+            'UID=credito;'
+            'PWD=Cr3d$.23xme;'
+)
+    except pymssql.Error as e:
         st.error(f"Error al conectar con la base de datos: {e}")
         st.stop()
 
