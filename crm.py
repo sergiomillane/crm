@@ -61,6 +61,7 @@ usuarios = {
     "983247": {"gestor": "Marcos Eduardo Robles Vázquez", "password": "34568"},
     "983248": {"gestor": "Reyna Berenice Salazar Cabrera", "password": "34569"},
     "983244": {"gestor": "José Alfredo Alvarado Hernandez", "password": "34561"}
+    "1":{"gestor":"Sergio Millán","password":"1"}
 }
 
 # Función de inicio de sesión
